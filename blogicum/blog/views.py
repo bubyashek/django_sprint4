@@ -30,10 +30,15 @@ def category_posts(request, category_slug):
 
 
 def post_detail(request, post_id):
-
-    post = get_object_or_404(Post, id=post_id)
-    if post.author != request.user:
-        post = get_object_or_404(query_post(), id=post_id)
+    if request.user.is_authenticated:
+        try:
+            post = Post.objects.get(id=post_id, author=request.user)
+        except Post.DoesNotExist:
+            published_posts = query_post()
+            post = get_object_or_404(published_posts, id=post_id)
+    else:
+        published_posts = query_post()
+        post = get_object_or_404(published_posts, id=post_id)
     comments = post.comments.order_by('created_at')
     form = CommentForm()
     context = {
