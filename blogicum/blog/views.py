@@ -1,10 +1,10 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, redirect, render
-
+from django.http import Http404
 from blog.forms import CommentForm, PostForm, ProfileForm
 from blog.models import Category, Comment, Post
-from blog.utils import posts_pagination, query_post
+from blog.utils import posts_pagination, query_post, filter_published_posts
 
 
 def index(request):
@@ -30,15 +30,13 @@ def category_posts(request, category_slug):
 
 
 def post_detail(request, post_id):
-    if request.user.is_authenticated:
-        try:
-            post = Post.objects.get(id=post_id, author=request.user)
-        except Post.DoesNotExist:
-            published_posts = query_post()
-            post = get_object_or_404(published_posts, id=post_id)
-    else:
-        published_posts = query_post()
-        post = get_object_or_404(published_posts, id=post_id)
+    post = get_object_or_404(
+        Post.objects.select_related('author', 'location', 'category'),
+        id=post_id
+    )
+    if post.author != request.user:
+        if not filter_published_posts(Post.objects.filter(id=post_id)).exists():
+            raise Http404
     comments = post.comments.order_by('created_at')
     form = CommentForm()
     context = {
@@ -93,7 +91,8 @@ def delete_post(request, post_id):
 def profile(request, username):
 
     profile = get_object_or_404(User, username=username)
-    posts = query_post(manager=profile.posts, filters=profile != request.user)
+    is_owner = request.user.is_authenticated and request.user == profile
+    posts = query_post(manager=profile.posts, filters=not is_owner)
     page_obj = posts_pagination(request, posts)
     context = {'profile': profile,
                'page_obj': page_obj}
