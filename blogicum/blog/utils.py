@@ -5,6 +5,13 @@ from django.utils import timezone
 from blog.constants import DEFAULT_NUM_PAGE, POSTS_ON_PAGE
 from blog.models import Post
 
+def filter_published_posts(queryset):
+
+    return queryset.filter(
+        is_published=True,
+        pub_date__lt=timezone.now(),
+        category__is_published=True
+    )
 
 def posts_pagination(request, posts):
     page_number = request.GET.get(
@@ -22,11 +29,7 @@ def query_post(
 ):
     queryset = manager.select_related('author', 'location', 'category')
     if filters:
-        queryset = queryset.filter(
-            is_published=True,
-            pub_date__lt=timezone.now(),
-            category__is_published=True
-        )
+        queryset = filter_published_posts(queryset)
     if with_comments:
         queryset = queryset.annotate(comment_count=Count('comments'))
     return queryset.order_by('-pub_date')
